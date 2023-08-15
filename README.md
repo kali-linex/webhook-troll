@@ -1,2 +1,5 @@
 # webhook-troll
->unpack the pyinstaller exe >get the webhook >send them furry porn
+
+this is a funi webhook spammer consisting of (mostly) 1 html file
+
+it should be probably rewritten in vue.js or something though because it's spaghetti
