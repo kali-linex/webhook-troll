@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Hooooker</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <style>
+        body {
+            font-family: sans-serif;
+            font-size: 20px;
+        }
+
+        code {
+            background-color: lightgray;
+            padding: 0.1rem;
+            border-radius: 2px;
+        }
+
+        .bord {
+            border: 1px solid lightgray;
+            border-radius: 0.2rem;
+        }
+
+        div.bord {
+            padding-left: 1rem;
+            padding-right: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        h2::before {
+            content: '# ';
+            font-style: italic;
+            font-family: monospace;
+        }
+
+        button,
+        .btn {
+            font-size: 1.5rem;
+            padding: 0.5rem;
+            background-color: darkslategray;
+            color: white;
+            border: none;
+            border-radius: 0.3rem;
+        }
+
+        button:active,
+        .btn:active {
+            background-color: lightgray;
+            color: black;
+        }
+
+        input {
+            font-size: 1.5rem;
+            border: none;
+            background-color: lightgray;
+            padding: 0.5rem;
+            border-radius: 0.3rem;
+        }
+
+        input:focus {
+            background-color: rgb(230, 230, 230);
+        }
+
+        .counter {
+            padding: 0.2rem;
+            font-size: 1.2rem;
+        }
+
+        .flx-hor-stretch {
+            display: flex;
+            flex-direction: row;
+            width: 100%;
+            gap: 1rem;
+            justify-content: space-evenly;
+        }
+
+        .flx-hor-stretch>* {
+            flex-grow: 1;
+        }
+
+        #fireimg {
+            width: 600px;
+        }
+
+        #samplescont {
+            overflow-x: scroll;
+            display: flex;
+            flex-direction: row;
+            gap: 1rem;
+            flex-wrap: nowrap;
+        }
+
+        #samplescont img {
+            height: 20rem;
+        }
+
+        .charizard-anim {
+            background-image: url('char.png');
+            background-size: 50px 50px;
+            background-repeat: repeat;
+            animation: 1s tilelol infinite linear;
+            cursor: copy;
+        }
+
+        @keyframes tilelol {
+            0% {
+                background-position: 0px 0px;
+                background-size: 50px 50px;
+            }
+
+
+            100% {
+                background-position: 50px 50px;
+                background-size: 50px 50px;
+            }
+        }
+
+        @media screen and (max-width: 800px) {
+            .flx-hor-stretch {
+                flex-direction: column;
+            }
+
+            #fireimg {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <h1><span class="bord">e621-to-webhook</span> artillery</h1>
+    <!-- <img src="https://static1.e926.net/data/3b/06/3b067024c234ccde483c0445af0c85fc.png"> -->
+    <div class="bord">
+        <h2>Ammo collection</h2>
+        <label for="tags">Put e621 tags here:</label>
+        <input name="tags" id="tags" value="order:score -animated">
+        <br>
+        <small>
+            It's a good idea to add <code>-animated</code> since videos won't play automatically and their
+            content might be obscured by the title screen.
+            Things to experiment with: <code>order:score_asc</code> (extra devilish), <code>gay</code>
+            (self-explanatory), <code>rating:explicit</code> (to force explicit posts).
+            <br>
+            Paging and <code>order:random</code> probably doesn't work well together, so don't ask for more than 320
+            posts at a time when using it.
+        </small>
+        <br>
+        <label for="postcount">Number of posts to fetch (and choose randomly from):</label>
+        <input name="postcount" id="postcount" type="number" value="320">
+        <br>
+        <small>
+            320 is the maximum that can be fetched in a single query to the e621 API.
+        </small>
+        <div class="flx-hor-stretch">
+            <button id="loadbtn" onclick="loadImages()">Load it</button>
+            <button onclick="clearImages()">Clear it</button>
+            <button onclick="toggleSamples()">
+                <span id="showsamplestext">Show sample of 5 images <br><small>(do you <em>really</em> wanna do
+                        that?)</small></span>
+                <span style="display: none;" id="hidesamplestext">OH GOD IT BURNS <br><small>(close it)</small></span>
+            </button>
+            <button id="filedrop" ondrop="dropTxt(event)" ondragover="event.stopPropagation(); event.preventDefault();" ondragenter="event.currentTarget.classList.add('charizard-anim')"
+                ondragleave="event.currentTarget.classList.remove('charizard-anim')">Drop .txt list here <br><small>click-to-open is not implemented</small></button>
+        </div>
+        <div id="samplescont" style="display:none;">
+        </div>
+        <p style="text-align: center;">
+            <code id="imgcount" class="counter">0</code> posts in ammo rack.
+            <button onclick="downloadImages()">Download ammo rack as .txt file</button>
+        </p>
+    </div>
+    <div class="bord">
+        <h2>Shot config</h2>
+        <p>
+            <label for="messagecontent">Message content (apart from embed):</label>
+            <br>
+            <input id="messagecontent" style="width: 100%; margin-right: 1rem;" value="@everyone">
+        </p>
+        <p>
+            <label for="embedtitle">Embed title:</label>
+            <input id="embedtitle" value=":thumbsup:">
+        </p>
+    </div>
+    <div class="bord">
+        <h2>Target setup</h2>
+        <p><input id="webhook" style="width: 100%; margin-right: 1rem;"
+                placeholder="https://discord.com/api/webhooks/…"></p>
+    </div>
+    <div class="bord">
+        <h2>Fire control</h2>
+        <div class="flx-hor-stretch">
+            <button onclick="fireAuto()">Fire (full auto) <br><small>click again to stop</small></button>
+            <button onclick="fire()">Fire (manual)</button>
+            <button onclick="erase()">Delete the webhook (sneaky)</button>
+        </div>
+
+        <p style="text-align: center;">Fired <code id="firecount" class="counter">0</code> rounds in total.</p>
+        <p><small>If it doesn't work (the tank thing should fire), and you're using some kind of tracker blocker (Privacy Badger did it for me specifically), turn it off as they might block Discord webhooks.</small></p>
+    </div>
+
+    <div style="text-align: center;">
+        <img src="tank0.png" id="fireimg">
+    </div>
+
+    <script>
+        const fireimg = document.getElementById('fireimg');
+        const loadbtn = document.getElementById('loadbtn');
+        const imgcount = document.getElementById('imgcount');
+        const intags = document.getElementById('tags');
+        const inpostcount = document.getElementById('postcount');
+        const showsamplestext = document.getElementById('showsamplestext');
+        const hidesamplestext = document.getElementById('hidesamplestext');
+        const samplescont = document.getElementById('samplescont');
+        const filedrop = document.getElementById('filedrop');
+
+        const inwebhook = document.getElementById('webhook');
+        const incontent = document.getElementById('messagecontent');
+        const inembedtitle = document.getElementById('embedtitle');
+
+        const outfirecount = document.getElementById('firecount');
+
+        const images = new Set();
+
+        async function dropTxt(ev) {
+            ev.preventDefault();
+            for (f of ev.dataTransfer.items) {
+                if (f.kind == 'file') {
+                    (await f.getAsFile().text()).split('\n').forEach(i => images.add(i.trim()));
+                }
+            }
+            filedrop.classList.remove('charizard-anim');
+            imgcount.textContent = images.size;
+        }
+
+        async function fire() {
+            const img = [...images][Math.floor(Math.random() * images.size)];
+            try {
+                const resp = await sendWebhookMessage(inwebhook.value, incontent.value, inembedtitle.value, img);
+                if (resp.status == 204 || resp.status == 200) {
+                    fireimg.src = 'tank.gif';
+                }
+                return true;
+            } catch (e) {
+                if (e.response?.status == 429) {
+                    await new Promise(r => setTimeout(r, e.response.data.retry_after * 1000))
+                    console.log(`Gun jammed. Try again ${e.response.data.retry_after} seconds later.`);
+                } else if (e.response?.status == 404) {
+                    alert("The webhook doesn't exist.");
+                    firing = false;
+                } else {
+                    console.log('Uh oh');
+                    console.log(e);
+                }
+                return false;
+            }
+        }
+
+        var firing = false;
+        var roundcount = 0;
+        async function fireAuto() {
+            if (firing) {
+                firing = false;
+                return;
+            }
+            firing = true;
+            while (firing) {
+                if (await fire()) {
+                    roundcount++;
+                    outfirecount.textContent = roundcount;
+                }
+            }
+        }
+
+        async function erase() {
+            axios.delete(inwebhook.value);
+            alert('goodbye little webhook');
+        }
+
+        async function loadImages() {
+            loadbtn.textContent = 'Loading...';
+            (await fetchE6(intags.value, inpostcount.value)).forEach(img => images.add(img));
+            loadbtn.textContent = 'Load it';
+            imgcount.textContent = images.size;
+        }
+
+        function clearImages() {
+            images.clear();
+            imgcount.textContent = 0;
+        }
+
+        var samplesShown = false;
+
+        function toggleSamples() {
+            samplesShown = !samplesShown;
+            if (samplesShown) {
+                showsamplestext.style.display = 'none';
+                hidesamplestext.style.display = 'inline';
+                samplescont.innerHTML = '';
+                samplescont.style.display = 'block';
+                const samples = [...images].sort(() => .5 - Math.random()).slice(0, 5);
+                samples.forEach(s => {
+                    const img = document.createElement('img');
+                    img.src = s;
+                    samplescont.appendChild(img);
+                });
+
+            } else {
+                showsamplestext.style.display = 'inline';
+                hidesamplestext.style.display = 'none';
+                samplescont.style.display = 'none';
+            }
+        }
+
+        function downloadImages() {
+            // i hate this oh my god
+            const a = document.createElement('a');
+            a.href = 'data:text/plain,' + encodeURIComponent([...images].join('\n'));
+            a.download = 'images.txt';
+            a.style.display = 'none';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        const E621_MAXLIMIT = 320;
+
+
+        async function fetchE6(tags, count) {
+            let posts = [];
+            let lastpost = null;
+            while (posts.length < count) {
+                const postsThisRound = Math.min(E621_MAXLIMIT, count - posts.length);
+                let url = `https://e621.net/posts.json?limit=${postsThisRound}&tags=${encodeURIComponent(tags)}`;
+                if (lastpost) {
+                    url += `&page=b${lastpost}`;
+                }
+                const resp = await axios.get(url);
+                const fetchedPosts = resp.data.posts;
+                if (fetchedPosts.length == 0) {
+                    break;
+                }
+                lastpost = fetchedPosts[fetchedPosts.length - 1].id;
+                posts.push(...fetchedPosts.filter(p => p.file.url).map(p => p.file.url));
+            }
+            return posts;
+        }
+
+        async function sendWebhookMessage(webhook, content, embedTitle, imageUrl) {
+            return await axios.post(webhook, {
+                content,
+                embeds: [{
+                    title: embedTitle,
+                    image: {
+                        url: imageUrl
+                    }
+                }]
+            });
+        }
+    </script>
+</body>
+
+</html>
